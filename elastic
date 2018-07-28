@@ -1,0 +1,6 @@
+curl -X PUT http://localhost:9200/office -d '{"mappings":{"reading":{"properties":{"temperature":{"type":"float"},"humidity":{"type":"float"},"timestamp":{"type":"date"}}}}}' -H 'Content-type: application/json'
+
+curl -X DELETE http://localhost:9200/office
+
+curl "localhost:9200/office/_search" -H 'Content-Type: application/json' -d'{"query":{"match_all":{}},"size":60,"sort":{"timestamp":{"order":"desc"}}}'
+

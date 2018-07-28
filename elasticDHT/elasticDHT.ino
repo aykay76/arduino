@@ -37,6 +37,7 @@ String pass                         = "52c2ea838d";  // your network password (u
 // as the current DHT reading algorithm adjusts itself to work on faster procs.
 DHT dht(DHTPIN, DHTTYPE);
 WiFiClient wifiClient;
+unsigned long ms = 0;
 
 void initWifi() {
     if (WiFi.status() != WL_CONNECTED) 
@@ -47,7 +48,7 @@ void initWifi() {
         // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
         WiFi.begin(ssid.c_str(), pass.c_str());
     
-        Serial.print("Waiting for Wifi connection.");
+        Serial.println("Waiting for Wifi connection.");
         while (WiFi.status() != WL_CONNECTED) {
             Serial.print(".");
             delay(500);
@@ -56,6 +57,7 @@ void initWifi() {
         Serial.println("Connected to wifi");
 
         initTime();
+        ms = millis();
     }
 }
 
@@ -80,48 +82,18 @@ void initTime() {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("DHTxx test!");
 
   dht.begin();
   initWifi();
-}
 
-void loop() {
-  // Wait a few seconds between measurements.
-  delay(2000);
-
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float h = dht.readHumidity();
-  // Read temperature as Celsius (the default)
   float t = dht.readTemperature();
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-  float f = dht.readTemperature(true);
 
   // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(t) || isnan(f)) {
+  if (isnan(h) || isnan(t)) {
     Serial.println("Failed to read from DHT sensor!");
     return;
   }
-
-  // Compute heat index in Fahrenheit (the default)
-  float hif = dht.computeHeatIndex(f, h);
-  // Compute heat index in Celsius (isFahreheit = false)
-  float hic = dht.computeHeatIndex(t, h, false);
-
-  Serial.print("Humidity: ");
-  Serial.print(h);
-  Serial.print(" %\t");
-  Serial.print("Temperature: ");
-  Serial.print(t);
-  Serial.print(" *C ");
-  Serial.print(f);
-  Serial.print(" *F\t");
-  Serial.print("Heat index: ");
-  Serial.print(hic);
-  Serial.print(" *C ");
-  Serial.print(hif);
-  Serial.println(" *F");
 
   time_t timestamp = time(NULL);
   String data = "{\"temperature\": " + String(t) + ", \"humidity\": " + String(h) + ", \"timestamp\": " + String(timestamp) + "000}";
@@ -132,9 +104,20 @@ void loop() {
   }
   wifiClient.print(String("POST /office/reading HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: ") + data.length() + "\r\n\r\n" + data);
   delay(50);
+  bool first = true;
   while (wifiClient.available())
   {
       String line = wifiClient.readStringUntil('\r');
-      Serial.println(line);
+      if (first)
+      {
+        Serial.println(line);
+        first = false;
+      }
   }
+
+  ESP.deepSleep(60 * 1000000);
+}
+
+void loop() 
+{
 }
