@@ -1,10 +1,13 @@
 #include <time.h>
 #include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
 
 String ssid                         = "BTHub5-MH2Q";        // your network SSID (name)
 String pass                         = "52c2ea838d";  // your network password (use for WPA, or use as key for WEP)
 unsigned long ms = 0;
 WiFiClient wifiClient;
+WiFiUDP udp;
+IPAddress IP_Broadcast(192, 168, 1, 144);
 
 void initTime() {
     time_t epochTime;
@@ -43,7 +46,7 @@ void initWifi() {
         Serial.println("Connected to wifi");
 
         initTime();
-        ms = millis();
+  //      ms = millis();
     }
 }
 
@@ -51,16 +54,58 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   initWifi();
+  //pinMode(LED_BUILTIN, OUTPUT);
+  udp.begin(1421);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  Serial.println(analogRead(A0));
+  char buffer[80];
+  int value = analogRead(A0);
+  uint8_t mapped = 100 - map(value, 0, 1024, 0, 100);
+  sprintf(buffer, "%d => %d", value, mapped);
+  Serial.println(buffer);
 
-  if (!wifiClient.connect("192.168.1.144", 9200)) {
+  if (udp.beginPacket(IP_Broadcast, 1421))
+  {
+    if (udp.write(mapped) == 0)
+    {
+      Serial.println("Error writing to UDP packet");    
+    }
+    if (udp.endPacket() == 0)
+    {
+      Serial.println("Error sending broadcast");
+    }
+  }
+  else
+  {
+    Serial.println("Can't begin UDP broadcast");
+  }
+
+  udp.beginPacket(IP_Broadcast, 1421);
+  if (udp.write((uint8_t *)"Hello", 5) == 0)
+  {
+    Serial.println("Error writing to UDP packet...");    
+  }
+  udp.endPacket();
+
+  String data = "{\"soilmoist\": " + String(mapped) + "}";
+  
+  if (wifiClient.connect("cubi.home", 9200)) {
+    wifiClient.print(String("POST /plant/reading HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: ") + data.length() + "\r\n\r\n" + data);
+  } else {
     Serial.println("Connection failed!");
   }
-  //wifiClient.print(String("POST /office/reading HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: ") + data.length() + "\r\n\r\n" + data);
-  
+  delay(50);
+  bool first = true;
+  while (wifiClient.available())
+  {
+      String line = wifiClient.readStringUntil('\r');
+      if (first)
+      {
+        Serial.println(line);
+        first = false;
+      }
+  }
   delay(1000);
 }
